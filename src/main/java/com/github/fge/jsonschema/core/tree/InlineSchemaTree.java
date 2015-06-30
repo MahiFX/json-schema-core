@@ -20,6 +20,7 @@
 package com.github.fge.jsonschema.core.tree;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.github.fge.jackson.JacksonUtils;
 import com.github.fge.jackson.jsonpointer.JsonPointer;
 import com.github.fge.jsonschema.core.ref.JsonRef;
@@ -217,11 +218,7 @@ public final class InlineSchemaTree
         final JsonPointer ptr, final Map<JsonRef, JsonPointer> absMap,
         final Map<JsonRef, JsonPointer> otherMap)
     {
-        /*
-         * FIXME: this means we won't go through schemas in keywords such as
-         * "anyOf" and friends. No idea whether this is a concern. It may be.
-         */
-        if (!node.isObject())
+        if (!node.isObject() && !node.isArray())
             return;
 
         final JsonRef ref = idFromNode(node);
@@ -235,10 +232,22 @@ public final class InlineSchemaTree
             targetMap.put(nextRef, ptr);
         }
 
-        final Map<String, JsonNode> tmp = JacksonUtils.asMap(node);
+        if(node.isObject()) {
+            final Map<String, JsonNode> tmp = JacksonUtils.asMap(node);
 
-        for (final Map.Entry<String, JsonNode> entry: tmp.entrySet())
-            walk(nextRef, entry.getValue(), ptr.append(entry.getKey()), absMap,
-                otherMap);
+            for (final Map.Entry<String, JsonNode> entry : tmp.entrySet())
+                walk(nextRef, entry.getValue(), ptr.append(entry.getKey()), absMap,
+                        otherMap);
+
+        }
+        else if(node.isArray()){
+            ArrayNode arrayNode = (ArrayNode)node;
+
+            for(int i=0;i<arrayNode.size();++i){
+                walk(nextRef, arrayNode.get(i), ptr.append(i), absMap,
+                        otherMap);
+
+            }
+        }
     }
 }
