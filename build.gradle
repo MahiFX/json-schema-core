@@ -53,6 +53,21 @@ apply(plugin: "signing");
 apply(plugin: "osgi");
 apply(plugin: "idea");
 apply(plugin: "eclipse");
+apply(plugin: "maven-publish");
+
+buildscript {
+    repositories {
+        maven {
+            url 'https://plugins.gradle.org/m2/'
+        }
+    }
+
+    dependencies {
+        classpath 'net.linguica.gradle:maven-settings-plugin:0.5'
+    }
+}
+
+apply plugin: 'net.linguica.maven-settings'
 
 group = "com.github.fge";
 version = "1.2.6-mahi";
@@ -67,7 +82,7 @@ project.ext {
  * Repositories to use
  */
 repositories {
-    mavenCentral();
+    maven { url "https://repo.maven.apache.org/maven2" }
 }
 
 /*
@@ -143,110 +158,32 @@ artifacts {
 }
 
 task wrapper(type: Wrapper) {
-    gradleVersion = "1.11";
-    distributionUrl = "http://services.gradle.org/distributions/gradle-${gradleVersion}-all.zip";
+    gradleVersion = "2.14.1";
+    distributionUrl = "https://services.gradle.org/distributions/gradle-${gradleVersion}-all.zip";
 }
 
-task pom << {
-    pom {}.writeTo("${projectDir}/pom.xml");
-}
-
-/*
- * SIGNING
- */
 
 project.ext {
     gitrwscm = sprintf("git@github.com:fge/%s", name);
     gitroscm = sprintf("https://github.com/fge/%s.git", name);
     projectURL = sprintf("https://github.com/fge/%s", name);
-    sonatypeStaging = "https://oss.sonatype.org/service/local/staging/deploy/maven2/";
-    sonatypeSnapshots = "https://oss.sonatype.org/content/repositories/snapshots/";
 };
 
-task checkSigningRequirements << {
-    def requiredProperties = [ "sonatypeUsername", "sonatypePassword" ];
-    def noDice = false;
-    requiredProperties.each {
-        if (project.properties[it] == null) {
-            noDice = true;
-            System.err.printf("property \"%s\" is not defined!", it)
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
         }
     }
-    if (noDice)
-        throw new IllegalStateException("missing required properties for " +
-            "upload");
-}
-
-uploadArchives {
-    dependsOn(checkSigningRequirements);
     repositories {
-        mavenDeployer {
-            beforeDeployment {
-                MavenDeployment deployment -> signing.signPom(deployment);
-            }
-
-            repository(url: "${sonatypeStaging}") {
-                authentication(
-                    userName: project.properties["sonatypeUsername"],
-                    password: project.properties["sonatypePassword"]
-                );
-            }
-
-            snapshotRepository(url: "${sonatypeSnapshots}") {
-                authentication(
-                    userName: project.properties["sonatypeUsername"],
-                    password: project.properties["sonatypePassword"]
-                );
-            }
+        maven {
+            // change URLs to point to your repos, e.g. http://my.org/repo
+            def releasesRepoUrl = "http://build.mahifx.com/nexus/content/repositories/thirdparty"
+            def snapshotsRepoUrl = "http://build.mahifx.com/nexus/content/repositories/thirdpartysnapshots"
+            name = version.endsWith('SNAPSHOT') ? "snapshots" : "releases"
+            url = version.endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
         }
     }
 }
 
-/*
- * Configure pom.xml on install, uploadArchives
- */
-[
-    install.repositories.mavenInstaller,
-    uploadArchives.repositories.mavenDeployer
-]*.pom*.whenConfigured { pom ->
-    pom.project {
-        name "${name}";
-        packaging "jar";
-        description "${description}";
-        url "${projectURL}";
-
-        scm {
-            url "${gitrwscm}";
-            connection "${gitrwscm}";
-            developerConnection "${gitroscm}";
-        }
-
-        licenses {
-            license {
-                name "Lesser General Public License, version 3 or greater";
-                url "http://www.gnu.org/licenses/lgpl.html";
-                distribution "repo";
-            };
-            license {
-                name "Apache Software License, version 2.0";
-                url "http://www.apache.org/licenses/LICENSE-2.0";
-                distribution "repo";
-            }
-        }
-
-        developers {
-            developer {
-                id "fge";
-                name "Francis Galiegue";
-                email "fgaliegue@gmail.com";
-            }
-        }
-    }
-}
-
-ext.forRelease = !version.endsWith("-SNAPSHOT");
-signing {
-    required { forRelease && gradle.taskGraph.hasTask("uploadArchives") };
-    sign configurations.archives;
-}
 

@@ -1,4 +1,4 @@
 #!/bin/bash
 
-./gradlew --recompile-scripts clean test uploadArchives
+./gradlew clean test publish
 
